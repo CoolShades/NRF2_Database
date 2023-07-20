@@ -1,0 +1,445 @@
+---
+title: "NRF2_Analysis"
+author: "U Bhalraam"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r Loading Libraries}
+library(tidyverse)
+library(readxl)
+library(gtsummary)
+library(lubridate)
+
+theme_gtsummary_journal(journal = "jama")
+#> Setting theme `JAMA`
+theme_gtsummary_compact()
+#> Setting theme `Compact`
+```
+
+```{r Import Database and Spliting it}
+NRF2_database <- read_excel("Data/NRF2 database.xlsx") 
+
+S_Data_T <- NRF2_database %>%
+  transmute(ID = Code,
+            Date_Adm = as.POSIXct(`Date of addmission`, format = "%Y-%m-%d"),
+            Time_Adm = format(as.POSIXct(`Time of addmisssion`), format = "%H:%M"),
+            Datetime_Adm = as.POSIXct(as.character(paste(Date_Adm, Time_Adm)), format = "%Y-%m-%d %H:%M"),
+            Date_Blood_1 = as.POSIXct(`Date of blood sample 1`, format = "%Y-%m-%d"),
+            Time_Blood_1 = format(as.POSIXct(`Time of blood sample 1`), format = "%H:%M"),
+            Datetime_Blood_1 = as.POSIXct(as.character(paste(Date_Blood_1, Time_Blood_1)), format = "%Y-%m-%d %H:%M"),    
+            Date_Blood_2 = as.POSIXct(`Date of blood sample 2`, format = "%Y-%m-%d"),
+            Time_Blood_2 = format(as.POSIXct(`Time of blood sample 2`), format = "%H:%M"),
+            Datetime_Blood_2 = as.POSIXct(as.character(paste(Date_Blood_2, Time_Blood_2)), format = "%Y-%m-%d %H:%M"),    
+            Date_Blood_3 = as.POSIXct(`Date of blood sample 3`, format = "%Y-%m-%d"),
+            Time_Blood_3 = format(as.POSIXct(`Time of blood sample 3`), format = "%H:%M"),
+            Datetime_Blood_3 = as.POSIXct(as.character(paste(Date_Blood_3, Time_Blood_3)), format = "%Y-%m-%d %H:%M"),
+            Admission_TP1 = difftime(Datetime_Blood_1, Datetime_Adm, units = "hours"),
+            Admission_TP2 = difftime(Datetime_Blood_2, Datetime_Adm, units = "hours"),
+            Admission_TP3 = difftime(Datetime_Blood_3, Datetime_Adm, units = "hours"),
+            DoBirth = as.POSIXct(DoB, format = "%Y-%m-%d"),
+            Age_Calc = as.numeric(difftime(Datetime_Adm, DoBirth, units = "weeks"))/52.25, #S_Data_T[20,14] has wrong DoB
+            Sex = factor(`Gender (0=F, 1=M)`, levels = 0:1, labels = c("Female", "Male")),
+            Weight = as.numeric(`Weight (kg)`),
+            Height = as.numeric(`Height (cm)`),
+            BMI = Weight/((Height/100)^2),
+            Systolic_BP = as.numeric(`Systolic BP (mmHg)`),
+            Diastolic_BP = as.numeric(`Diastolic BP (mmHg)`),
+            Smoking_Stat = factor(`Smoking history (0=non, 1=smoker, 2=ex)`, levels = 0:2, labels = c("Non-Smoker", "Current Smoker", "Ex-Smoker")),
+            Alcohol_Intke = factor(`Alcohol intake (0=no 1=yes)`, levels = 0:1, labels = c("No", "Yes")),
+            STEMI_type = fct_collapse(factor(`Type of STEMI`), Anterior = c("Anteriolateral", "Anterior")), 
+            #Made Anteriolateral == Anterior (above),
+            Stent_No = factor(`Number of STENTS`),
+            Prev_Stent_No = factor(`Number of previous STENTS`),
+            FHx_CVD = factor(`Fam hist CVD (0=no 1=yes)`, levels = 0:1, labels = c("No", "Yes")),
+            PMHx_DM = factor(`Diabetes (0=no 1=yes)`, levels = 0:1, labels = c("No", "Yes")),
+            PMHx_HTN = factor(`Hypertension (0=no 1=yes)`, levels = 0:1, labels = c("No", "Yes")),
+            PMHx_Hyperchol = factor(`High cholesterol (0=no 1=yes)`, levels = 0:1, labels = c("No", "Yes")),
+            PMHx_Angina = factor(`Angina (0=no 1=yes)`, levels = 0:1, labels = c("No", "Yes")),
+            MED_Aspirin = factor(Aspirin, levels = 0:1, labels = c("No", "Yes")),
+            MED_TicClopi = factor(`Tic/Clopidogrel`, levels = 0:1, labels = c("No", "Yes")),
+            MED_Statins = factor(Statins, levels = 0:1, labels = c("No", "Yes")),
+            MED_ACEiARB = factor(`ACE Inh/ARBs`, levels = 0:1, labels = c("No", "Yes")),
+            MED_BB = factor(`B-Blockers`, levels = 0:1, labels = c("No", "Yes")),
+            MED_WarfDOAC = factor(`Warf/Api/Rivban`, levels = 0:1, labels = c("No", "Yes")),
+            MED_CCB = factor(CCB, levels = 0:1, labels = c("No", "Yes")),
+            MED_Diuretics = factor(Diuretics, levels = 0:1, labels = c("No", "Yes")),
+            MED_OtherCV = factor(`No. of other medications that affect CV`),
+            Hb_1 = as.numeric(`Hb TP1`),
+            Hb_2 = as.numeric(`Hb TP2`),
+            Hb_3 = as.numeric(`Hb TP3`),
+            WBC_1 = as.numeric(`WBC TP1`),
+            WBC_2 = as.numeric(`WBC TP2`),
+            WBC_3 = as.numeric(`WBC TP3`),
+            PLT_1 = as.numeric(`PLT TP1`),
+            PLT_2 = as.numeric(`PLT TP2`),
+            PLT_3 = as.numeric(`PLT TP3`),
+            RBC_1 = as.numeric(`RBC TP1`),
+            RBC_2 = as.numeric(`RBC TP2`),
+            RBC_3 = as.numeric(`RBC TP3`),
+            HCT_1 = as.numeric(`HCT TP1`),
+            HCT_2 = as.numeric(`HCT TP2`),
+            HCT_3 = as.numeric(`HCT TP3`),
+            MCV_1 = as.numeric(`MCV TP1`),
+            MCV_2 = as.numeric(`MCV TP2`),
+            MCV_3 = as.numeric(`MCV TP3`),
+            MCH_1 = as.numeric(`MCH TP1`),
+            MCH_2 = as.numeric(`MCH TP2`),
+            MCH_3 = as.numeric(`MCH TP3`),
+            MCHC_1 = as.numeric(`MCHC TP1`),
+            MCHC_2 = as.numeric(`MCHC TP2`),
+            MCHC_3 = as.numeric(`MCHC TP3`),
+            NE_1 = as.numeric(`NE# TP1`),
+            NE_2 = as.numeric(`NE# TP2`),
+            NE_3 = as.numeric(`NE# TP3`),
+            LY_1 = as.numeric(`LY# TP1`),
+            LY_2 = as.numeric(`LY# TP2`),
+            LY_3 = as.numeric(`LY# TP3`),
+            MO_1 = as.numeric(`MO# TP1`),
+            MO_2 = as.numeric(`MO# TP2`),
+            MO_3 = as.numeric(`MO# TP3`),
+            EO_1 = as.numeric(`EO# TP1`),
+            EO_2 = as.numeric(`EO# TP2`),
+            EO_3 = as.numeric(`EO# TP3`),
+            BA_1 = as.numeric(`BA# TP1`),
+            BA_2 = as.numeric(`BA# TP2`),
+            BA_3 = as.numeric(`BA# TP3`),
+            Na_1 = as.numeric(`Na TP1`),
+            Na_2 = as.numeric(`Na TP2`),
+            Na_3 = as.numeric(`Na TP3`),
+            K_1 = as.numeric(`K TP1`),
+            K_2 = as.numeric(`K TP2`),
+            K_3 = as.numeric(`K TP3`),
+            Urea_1 = as.numeric(`Urea TP1`),
+            Urea_2 = as.numeric(`Urea TP2`),
+            Urea_3 = as.numeric(`Urea TP3`),
+            Creat_1 = as.numeric(`Creatine TP1`),
+            Creat_2 = as.numeric(`Creatine TP2`),
+            Creat_3 = as.numeric(`Creatine TP3`),
+            ALT_1 = as.numeric(`ALT TP1`),
+            ALT_2 = as.numeric(`ALT TP2`),
+            ALT_3 = as.numeric(`ALT TP3`),
+            Bili_1 = as.numeric(`Bili TP1`),
+            Bili_2 = as.numeric(`Bili TP2`),
+            Bili_3 = as.numeric(`Bili TP3`),
+            ALP_1 = as.numeric(`AlkPhos TP1`),
+            ALP_2 = as.numeric(`AlkPhos TP2`),
+            ALP_3 = as.numeric(`AlkPhos TP3`),
+            Alb_1 = as.numeric(`Album TP1`),
+            Alb_2 = as.numeric(`Album TP2`),
+            Alb_3 = as.numeric(`Album TP3`),
+            Ca_1 = as.numeric(`Ca TP1`),
+            Ca_2 = as.numeric(`Ca TP2`),
+            Ca_3 = as.numeric(`Ca TP3`),
+            eGFR_1 = as.numeric(`eGFR TP1`),
+            eGFR_2 = as.numeric(`eGFR TP2`),
+            eGFR_3 = as.numeric(`eGFR TP3`),
+            #Dropping the trop as it would be hard to interpret.
+            #Glucose and Lactate equally useless.
+            Tot_chol_1 = as.numeric(`Total Chol TP1`),
+            Tot_chol_2 = as.numeric(`Total Chol TP2`),
+            Tot_chol_3 = as.numeric(`Total Chol TP3`),
+            HDL_1 = as.numeric(`HDL TP1`),
+            HDL_2 = as.numeric(`HDL TP2`),
+            HDL_3 = as.numeric(`HDL TP3`),
+            Tot_over_HDL_1 = as.numeric(`Total/HDL TP1`),
+            Tot_over_HDL_2 = as.numeric(`Total/HDL TP2`),
+            Tot_over_HDL_3 = as.numeric(`Total/HDL TP3`),
+            #Dropping LDL and CRP as they look quite useless
+            FLPI2_Baseline = as.numeric(`Baseline (Perfusion units (AU))`),
+            FLPI2_Max_Perfusion = as.numeric(`Max perfusion response (Perfusion units (AU))`),
+            FLPI2_Perc_Change = as.numeric(`Percentage change (Perfusion units (AU))`),
+            EndoP_RHIndex = as.numeric(`RH index`),
+            EndoP_PWA_AIx = as.numeric(`ENDO_PWA AIx (%)`),
+            EndoP_PWA_AIx_HR75 = as.numeric(`ENDO_PWA AIx @75%`),
+            EndoP_HR = as.numeric(HR...142),
+            SphygC_Brac_SystolicBP = as.numeric(`Brachial systolic blood Pressure (mmHg)`),
+            SphygC_Brac_DiastolicBP = as.numeric(`Brachial diastolic blood Pressure (mmHg)`),
+            SphygC_Aor_SystolicBP = as.numeric(`Aortic systolic BP (mmHg)`),
+            SphygC_Aor_DiastolicBP = as.numeric(`Aortic diastolic BP (mmHg)`),
+            SphygC_Aug_Pressure = as.numeric(`Augmentation pressure (mmHg)`),
+            SphygC_Pulse_Pressure = as.numeric(`Pluse presure (mmHg)`),
+            SphygC_Rad_PWA_AIx = as.numeric(`PWA AIx (%)`),
+            SphygC_Rad_PWA_AIx_HR75 = as.numeric(`PWA AIx @75 radial (%)`),
+            SphygC_MAP = as.numeric(MAP),
+            SphygC_HR = as.numeric(HR...153),
+            SphygC_PWV = as.numeric(`PWV (m/s)`),
+            SphygC_PulseTransitTime = as.numeric(`Pluse transit time (ms)`),
+            Taq_PrePCI_BACH1 = as.numeric(BACH1_1),
+            Taq_2hr_BACH1 = as.numeric(BACH1_2),
+            Taq_24hr_BACH1 = as.numeric(BACH1_3),
+            Taq_PrePCI_GCLC = as.numeric(GCLC_1),
+            Taq_2hr_GCLC = as.numeric(GCLC_2),
+            Taq_24hr_GCLC = as.numeric(GCLC_3),
+            Taq_PrePCI_GCLM = as.numeric(GCLM_1),
+            Taq_2hr_GCLM = as.numeric(GCLM_2),
+            Taq_24hr_GCLM = as.numeric(GCLM_3),
+            Taq_PrePCI_GSR = as.numeric(GSR_1),
+            Taq_2hr_GSR = as.numeric(GSR_2),
+            Taq_24hr_GSR = as.numeric(GSR_3),
+            Taq_PrePCI_NQO1 = as.numeric(NQO1_1),
+            Taq_2hr_NQO1 = as.numeric(NQO1_2),
+            Taq_24hr_NQO1 = as.numeric(NQO1_3),
+            Taq_PrePCI_IL10 = as.numeric(IL10_1),
+            Taq_2hr_IL10 = as.numeric(IL10_2),
+            Taq_24hr_IL10 = as.numeric(IL10_3),
+            Taq_PrePCI_HMOX1 = as.numeric(HMOX1_1),
+            Taq_2hr_HMOX1 = as.numeric(HMOX1_2),
+            Taq_24hr_HMOX1 = as.numeric(HMOX1_3),
+            Taq_PrePCI_NRF2 = as.numeric(NRF2_1),
+            Taq_2hr_NRF2 = as.numeric(NRF2_2),
+            Taq_24hr_NRF2 = as.numeric(NRF2_3),
+            Taq_PrePCI_KEAP1 = as.numeric(KEAP1_1),
+            Taq_2hr_KEAP1 = as.numeric(KEAP1_2),
+            Taq_24hr_KEAP1 = as.numeric(KEAP1_3),
+            Taq_PrePCI_CREB = as.numeric(CREB_1),
+            Taq_2hr_CREB = as.numeric(CREB_2),
+            Taq_24hr_CREB = as.numeric(CREB_3),
+            Taq_PrePCI_CRTC3 = as.numeric(CRTC3_1),
+            Taq_2hr_CRTC3 = as.numeric(CRTC3_2),
+            Taq_24hr_CRTC3 = as.numeric(CRTC3_3),
+            Taq_PrePCI_SIK1 = as.numeric(SIK1_1),
+            Taq_2hr_SIK1 = as.numeric(SIK1_2),
+            Taq_24hr_SIK1 = as.numeric(SIK1_3),
+            Taq_PrePCI_SIK2 = as.numeric(SIK2_1),
+            Taq_2hr_SIK2 = as.numeric(SIK2_2),
+            Taq_24hr_SIK2 = as.numeric(SIK2_3),
+            Taq_PrePCI_SIK3 = as.numeric(SIK3_1),
+            Taq_2hr_SIK3 = as.numeric(SIK3_2),
+            Taq_24hr_SIK3 = as.numeric(SIK3_3)
+            ) %>% 
+  select(-starts_with("Date_"), -starts_with("Time_")) #Only keep the DateTime columns
+
+tbl <- gtsummary::tbl_summary(S_Data_T[,-1], 
+                       missing = "no",
+                     type = list(MO_1 ~ "continuous",
+                                 MO_2 ~ "continuous",
+                                 MO_3 ~ "continuous",
+                                 BA_1 ~ "continuous",
+                                 BA_2 ~ "continuous",
+                                 BA_3 ~ "continuous",
+                                 Na_2 ~ "continuous",
+                                 Na_3 ~ "continuous",
+                                 K_3 ~ "continuous",
+                                 Bili_2 ~ "continuous",
+                                 Bili_3 ~ "continuous",
+                                 Alb_2 ~ "continuous",
+                                 Ca_2 ~ "continuous",
+                                 Ca_3 ~ "continuous",
+                                 eGFR_1 ~ "continuous",
+                                 eGFR_2 ~ "continuous",
+                                 eGFR_3 ~ "continuous",
+                                 Tot_chol_2 ~ "continuous",
+                                 Tot_chol_3 ~ "continuous",
+                                 HDL_2 ~ "continuous",
+                                 HDL_3 ~ "continuous",
+                                 Tot_over_HDL_2 ~ "continuous",
+                                 Tot_over_HDL_3 ~ "continuous")) %>% add_n() %>% as_gt()
+
+gt::gtsave(tbl, "Tables/Table_All.html")
+```
+
+```{r Taqman Table and Plots}
+#ends_with("_1"), ends_with("_2"), ends_with("_3", -where(is.POSIXt))
+TrebbleTime <- S_Data_T %>%
+  select(ID, starts_with("Taq_")) %>%
+  pivot_longer(cols = 2:43, names_to = "Variable", values_to = "Values") %>%
+  mutate(Instance = case_when(str_detect(Variable, "PrePCI") ~ 1,
+                   str_detect(Variable, "2hr") ~ 2,
+                   str_detect(Variable, "24hr") ~ 3)) %>%
+  mutate(Var = str_replace(Variable, '(.*?)Taq_PrePCI_(.*?)','\\1')) %>%
+  mutate(Var = str_replace(Var, '(.*?)Taq_2hr_(.*?)','\\1')) %>%
+  mutate(Var = str_replace(Var, '(.*?)Taq_24hr_(.*?)','\\1')) %>%
+  select(-Variable, -ID) %>%
+  mutate(Var = factor(Var),
+         Instance = factor(Instance, levels = 1:3, labels = c("Pre-PCI", "2 Hours", "24 Hours")))
+
+ tbl <- 
+   TrebbleTime %>% 
+   tbl_strata(.combine_with = "tbl_stack", strata = Var, ~.x  %>% 
+   tbl_summary(by = "Instance", missing = "no") %>% 
+   modify_header(all_stat_cols() ~ "**{level}**") %>% add_p() %>% bold_p() %>% add_n()) %>% as_gt()
+ 
+ gt::gtsave(tbl, "Tables/Taqman_Table_wrongP.html")
+ 
+plotlist <- ggstatsplot::grouped_ggwithinstats(
+  TrebbleTime, 
+  x = Instance, 
+  y = Values, 
+  grouping.var = Var, 
+  type = "np")
+ 
+cairo_pdf("Plots/Taqman_Plots.pdf", onefile=T)
+for (i in 1:14) {print(plotlist[[i]])}
+dev.off()
+```
+
+```{r Bloods 3Cat Table and Plots}
+TrebbleTime <- S_Data_T %>%
+  select(ID, ends_with("_1"), ends_with("_2"), ends_with("_3"), -where(is.POSIXt)) %>%
+  pivot_longer(cols = 2:79, names_to="Variable", values_to="Values") %>%
+  mutate(Instance = case_when(str_detect(Variable, "_1") ~ 1,
+                              str_detect(Variable, "_2") ~ 2,
+                              str_detect(Variable, "_3") ~ 3,)) %>%
+  mutate(Var = str_replace(Variable, '(.*?)_1(.*?)','\\1')) %>%
+  mutate(Var = str_replace(Var, '(.*?)_2(.*?)','\\1')) %>%
+  mutate(Var = str_replace(Var, '(.*?)_3(.*?)','\\1')) %>%
+  select(-Variable, -ID) %>%
+  mutate(Var = factor(Var),
+         Instance = factor(Instance, levels = 1:3, labels = c("Pre-PCI", "2 Hours", "24 Hours"))) %>%
+  filter(Var != "Ca") %>%
+  filter(Var != "HDL") %>%
+  filter(Var != "Tot_chol") %>%
+  filter(Var != "Tot_over_HDL")
+
+tbl <- 
+   TrebbleTime %>% 
+   tbl_strata(.combine_with = "tbl_stack", strata = Var, ~.x  %>% 
+   tbl_summary(by = "Instance", missing = "no", type = list(Values ~ 'continuous')) %>% 
+   modify_header(all_stat_cols() ~ "**{level}**") %>% add_p() %>% bold_p() %>% add_n()) %>% as_gt()
+ 
+ gt::gtsave(tbl, "Tables/Bloods_Table_3cat_wrongP.html")
+ 
+plotlist <- ggstatsplot::grouped_ggwithinstats(
+  TrebbleTime, 
+  x = Instance, 
+  y = Values, 
+  grouping.var = Var, 
+  type = "np")
+ 
+cairo_pdf("Plots/Bloods_Plots_3cat.pdf", onefile=T)
+for (i in 1:22) {print(plotlist[[i]])}
+dev.off()
+```
+
+```{r Bloods 2Cat1-2 Table and Plots}
+TrebbleTime <- S_Data_T %>%
+  select(ID, ends_with("_1"), ends_with("_2"), -where(is.POSIXt)) %>%
+  pivot_longer(cols = 2:53, names_to="Variable", values_to="Values") %>%
+  mutate(Instance = case_when(str_detect(Variable, "_1") ~ 1,
+                              str_detect(Variable, "_2") ~ 2)) %>%
+  mutate(Var = str_replace(Variable, '(.*?)_1(.*?)','\\1')) %>%
+  mutate(Var = str_replace(Var, '(.*?)_2(.*?)','\\1')) %>%
+  select(-Variable, -ID) %>%
+  mutate(Var = factor(Var),
+         Instance = factor(Instance, levels = 1:2, labels = c("Pre-PCI", "2 Hours"))) #%>%
+  #filter(Var != "Ca") %>%
+  #filter(Var != "HDL") %>%
+  #filter(Var != "Tot_chol") %>%
+  #filter(Var != "Tot_over_HDL")
+
+tbl <- 
+   TrebbleTime %>% 
+   tbl_strata(.combine_with = "tbl_stack", strata = Var, ~.x  %>% 
+   tbl_summary(by = "Instance", missing = "no", type = list(Values ~ 'continuous')) %>% 
+   modify_header(all_stat_cols() ~ "**{level}**") %>% add_p() %>% bold_p() %>% add_n()) %>% as_gt()
+ 
+ gt::gtsave(tbl, "Tables/Bloods_Table_2cat1-2_wrongP.html")
+ 
+plotlist <- ggstatsplot::grouped_ggwithinstats(
+  TrebbleTime, 
+  x = Instance, 
+  y = Values, 
+  grouping.var = Var, 
+  type = "np")
+ 
+cairo_pdf("Plots/Bloods_Plots_2cat1-2.pdf", onefile=T)
+plotlist[[1]]
+plotlist[[2]]
+plotlist[[3]]
+plotlist[[4]]
+plotlist[[5]]
+plotlist[[6]]
+plotlist[[7]]
+plotlist[[8]]
+plotlist[[9]]
+plotlist[[10]]
+plotlist[[11]]
+#plotlist[[12]]
+plotlist[[13]]
+plotlist[[14]]
+plotlist[[15]]
+plotlist[[16]]
+plotlist[[17]]
+plotlist[[18]]
+plotlist[[19]]
+plotlist[[20]]
+plotlist[[21]]
+plotlist[[22]]
+#plotlist[[23]]
+#plotlist[[24]]
+plotlist[[25]]
+plotlist[[26]]
+dev.off()
+```
+
+```{r Bloods 2Cat2-3 Table and Plots}
+TrebbleTime <- S_Data_T %>%
+  select(ID, ends_with("_2"), ends_with("_3"), -where(is.POSIXt)) %>%
+  pivot_longer(cols = 2:53, names_to="Variable", values_to="Values") %>%
+  mutate(Instance = case_when(str_detect(Variable, "_2") ~ 2,
+                              str_detect(Variable, "_3") ~ 3)) %>%
+  mutate(Var = str_replace(Variable, '(.*?)_2(.*?)','\\1')) %>%
+  mutate(Var = str_replace(Var, '(.*?)_3(.*?)','\\1')) %>%
+  select(-Variable, -ID) %>%
+  mutate(Var = factor(Var),
+         Instance = factor(Instance, levels = 2:3, labels = c("2 Hours", "24 Hours"))) #%>%
+  #filter(Var != "Ca") %>%
+  #filter(Var != "HDL") %>%
+  #filter(Var != "Tot_chol") %>%
+  #filter(Var != "Tot_over_HDL")
+
+tbl <- 
+   TrebbleTime %>% 
+   tbl_strata(.combine_with = "tbl_stack", strata = Var, ~.x  %>% 
+   tbl_summary(by = "Instance", missing = "no", type = list(Values ~ 'continuous')) %>% 
+   modify_header(all_stat_cols() ~ "**{level}**") %>% add_p() %>% bold_p() %>% add_n()) %>% as_gt()
+ 
+ gt::gtsave(tbl, "Tables/Bloods_Table_2cat2-3_wrongP.html")
+ 
+plotlist <- ggstatsplot::grouped_ggwithinstats(
+  TrebbleTime, 
+  x = Instance, 
+  y = Values, 
+  grouping.var = Var, 
+  type = "np")
+ 
+cairo_pdf("Plots/Bloods_Plots_2cat2-3.pdf", onefile=T)
+plotlist[[1]]
+plotlist[[2]]
+plotlist[[3]]
+plotlist[[4]]
+plotlist[[5]]
+#plotlist[[6]]
+plotlist[[7]]
+plotlist[[8]]
+plotlist[[9]]
+plotlist[[10]]
+plotlist[[11]]
+#plotlist[[12]]
+plotlist[[13]]
+plotlist[[14]]
+plotlist[[15]]
+plotlist[[16]]
+plotlist[[17]]
+plotlist[[18]]
+plotlist[[19]]
+plotlist[[20]]
+plotlist[[21]]
+plotlist[[22]]
+#plotlist[[23]]
+#plotlist[[24]]
+plotlist[[25]]
+plotlist[[26]]
+dev.off()
+```
